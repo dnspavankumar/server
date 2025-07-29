@@ -1,23 +1,30 @@
-# Core Flask packages
-Flask==2.3.2
-Flask-SocketIO==5.3.4
-python-dotenv==1.0.0
-eventlet==0.33.3
+Flask
+Flask-SocketIO
+python-dotenv
+eventlet
+gunicorn
 
-# Google AI and Maps
 google-generativeai
-googlemaps==4.10.0
+google-ai-generativelanguage
+googlemaps
 
-# HTTP and web parsing
+googlesearch-python
 aiohttp
 beautifulsoup4
+lxml
 requests
 
-# Weather
-python-weather==1.1.1
+python-weather
 
-# WebSockets
-websockets==11.0.3
+websockets
 
-# SocketIO dependencies
-bidict==0.22.1
+torch
+torchvision
+torchaudio
+
+asyncio
+
+gevent
+engineio
+bidict
+google.genai
