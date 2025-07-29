@@ -3,13 +3,13 @@ import base64
 import torch
 import python_weather
 try:
-    from google.genai import types
-    from google import genai
-    print("Successfully imported google.genai")
+    import google.generativeai as genai
+    from google.generativeai import types
+    print("Successfully imported google.generativeai")
 except ImportError as e:
-    print(f"Error importing google.genai: {e}")
-    # Define minimal mocks here if still needed...
-    # (omitted for brevity)
+    print(f"Error importing google.generativeai: {e}")
+    import sys
+    sys.exit(1)
 
 import googlemaps
 from datetime import datetime
@@ -55,37 +55,47 @@ class ADA:
             self.device = "cpu"
             print("CUDA is not available. Using CPU.")
 
-        self.get_weather_func = types.FunctionDeclaration(
-            name="get_weather",
-            description="Get current weather conditions for a location.",
-            parameters=types.Schema(
-                type=types.Type.OBJECT, properties={
-                    "location": types.Schema(type=types.Type.STRING, description="City and state")
-                }, required=["location"]
-            )
-        )
-        self.get_travel_duration_func = types.FunctionDeclaration(
-            name="get_travel_duration",
-            description="Calculates estimated travel duration between origin and destination.",
-            parameters=types.Schema(
-                type=types.Type.OBJECT, properties={
-                    "origin": types.Schema(type=types.Type.STRING),
-                    "destination": types.Schema(type=types.Type.STRING),
-                    "mode": types.Schema(type=types.Type.STRING)  # Optional transport mode
-                }, required=["origin", "destination"]
-            )
-        )
-        self.get_search_results_func = types.FunctionDeclaration(
-            name="get_search_results",
-            description="Performs a Google search and returns top result URLs.",
-            parameters=types.Schema(
-                type=types.Type.OBJECT,
-                properties={
-                    "query": types.Schema(type=types.Type.STRING)
+        # Define function schemas for Google Generative AI
+        self.get_weather_func = {
+            "name": "get_weather",
+            "description": "Get current weather conditions for a location.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "City and state"
+                    }
                 },
-                required=["query"]
-            )
-        )
+                "required": ["location"]
+            }
+        }
+
+        self.get_travel_duration_func = {
+            "name": "get_travel_duration",
+            "description": "Calculates estimated travel duration between origin and destination.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin": {"type": "string"},
+                    "destination": {"type": "string"},
+                    "mode": {"type": "string"}
+                },
+                "required": ["origin", "destination"]
+            }
+        }
+
+        self.get_search_results_func = {
+            "name": "get_search_results",
+            "description": "Performs a Google search and returns top result URLs.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"}
+                },
+                "required": ["query"]
+            }
+        }
 
         self.available_functions = {
             "get_weather": self.get_weather,
@@ -99,21 +109,19 @@ class ADA:
         Address your creator as Sir with a British accent.
         """
 
-        self.config = types.GenerateContentConfig(
+        print(f"GOOGLE_API_KEY set? {'Yes' if GOOGLE_API_KEY else 'No'}")
+        genai.configure(api_key=GOOGLE_API_KEY)
+
+        # Initialize the model with function calling
+        self.model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
             system_instruction=self.system_behavior,
             tools=[
-                types.Tool(function_declarations=[
-                    self.get_weather_func,
-                    self.get_travel_duration_func,
-                    self.get_search_results_func
-                ])
+                self.get_weather_func,
+                self.get_travel_duration_func,
+                self.get_search_results_func
             ]
         )
-
-        print(f"GOOGLE_API_KEY set? {'Yes' if GOOGLE_API_KEY else 'No'}")
-        self.client = genai.Client(api_key=GOOGLE_API_KEY)
-        self.model = "gemini-2.0-flash"
-        self.chat = self.client.aio.chats.create(model=self.model, config=self.config)
 
         self.latest_video_frame_data_url = None
         self.input_queue = asyncio.Queue()
