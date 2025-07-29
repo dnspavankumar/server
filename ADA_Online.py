@@ -150,7 +150,86 @@ class ADA:
                 print(f"Error fetching weather for {location}: {e}")
                 return {"error": f"Could not fetch weather for {location}."}
 
-    # Keep get_travel_duration and get_search_results with similar safeguards as before, omitted here for brevity.
+    async def get_travel_duration(self, origin: str, destination: str, mode: str = "driving") -> dict:
+        try:
+            gmaps = googlemaps.Client(key=self.Maps_api_key)
+            directions_result = gmaps.directions(
+                origin=origin,
+                destination=destination,
+                mode=mode,
+                departure_time="now"
+            )
+
+            if directions_result:
+                route = directions_result[0]
+                leg = route['legs'][0]
+                duration = leg['duration']['text']
+                distance = leg['distance']['text']
+
+                travel_data = {
+                    'origin': origin,
+                    'destination': destination,
+                    'mode': mode,
+                    'duration': duration,
+                    'distance': distance
+                }
+                print(f"Travel data fetched: {travel_data}")
+                if self.socketio and self.client_sid:
+                    self.socketio.emit('travel_update', travel_data, room=self.client_sid)
+                return travel_data
+            else:
+                return {"error": f"No route found from {origin} to {destination}"}
+        except Exception as e:
+            print(f"Error fetching travel duration: {e}")
+            return {"error": f"Could not fetch travel duration: {str(e)}"}
+
+    async def get_search_results(self, query: str) -> dict:
+        try:
+            # Using requests to perform a simple Google search
+            import requests
+            from urllib.parse import quote
+
+            search_url = f"https://www.google.com/search?q={quote(query)}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+
+            response = requests.get(search_url, headers=headers)
+
+            if response.status_code == 200:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(response.text, 'html.parser')
+
+                # Extract search result links
+                search_results = []
+                for result in soup.find_all('div', class_='g')[:5]:  # Get top 5 results
+                    link_elem = result.find('a')
+                    if link_elem and link_elem.get('href'):
+                        title_elem = result.find('h3')
+                        title = title_elem.text if title_elem else "No title"
+                        url = link_elem.get('href')
+                        if url.startswith('/url?q='):
+                            url = url.split('/url?q=')[1].split('&')[0]
+                        search_results.append({
+                            'title': title,
+                            'url': url
+                        })
+
+                search_data = {
+                    'query': query,
+                    'results': search_results
+                }
+                print(f"Search results fetched: {len(search_results)} results for '{query}'")
+                if self.socketio and self.client_sid:
+                    self.socketio.emit('search_update', search_data, room=self.client_sid)
+                return search_data
+            else:
+                return {"error": f"Search request failed with status {response.status_code}"}
+        except Exception as e:
+            print(f"Error performing search: {e}")
+            return {"error": f"Could not perform search: {str(e)}"}
+
+    # Additional methods for ADA functionality
 
     async def run_gemini_session(self):
         print("Starting Gemini session manager...")
@@ -288,6 +367,60 @@ class ADA:
             print("Gemini session manager finished.")
             # Cleanup tasks if any (your existing code)
 
-    # Other methods remain largely the same (e.g., run_tts_and_audio_out, start_all_tasks, stop_all_tasks)
-    # Remember to add similar try-except and logging measures where appropriate.
+    async def process_input(self, message: str, is_final_turn_input: bool = True):
+        """Process text input from the user"""
+        try:
+            await self.input_queue.put((message, is_final_turn_input))
+            print(f"Added message to input queue: {message}")
+        except Exception as e:
+            print(f"Error processing input: {e}")
+
+    async def process_video_frame(self, frame_data_url: str):
+        """Process video frame data"""
+        try:
+            self.latest_video_frame_data_url = frame_data_url
+            print("Video frame data updated")
+        except Exception as e:
+            print(f"Error processing video frame: {e}")
+
+    async def clear_video_queue(self):
+        """Clear the video frame queue"""
+        try:
+            self.latest_video_frame_data_url = None
+            print("Video frame data cleared")
+        except Exception as e:
+            print(f"Error clearing video queue: {e}")
+
+    async def start_all_tasks(self):
+        """Start all background tasks"""
+        try:
+            print("Starting ADA tasks...")
+            # Start the Gemini chat session
+            self.chat = self.model.start_chat()
+
+            # Start the Gemini session manager
+            gemini_task = asyncio.create_task(self.run_gemini_session())
+            self.tasks.append(gemini_task)
+
+            print("ADA tasks started successfully")
+        except Exception as e:
+            print(f"Error starting ADA tasks: {e}")
+            raise
+
+    async def stop_all_tasks(self):
+        """Stop all background tasks"""
+        try:
+            print("Stopping ADA tasks...")
+            for task in self.tasks:
+                if not task.done():
+                    task.cancel()
+
+            # Wait for tasks to complete
+            if self.tasks:
+                await asyncio.gather(*self.tasks, return_exceptions=True)
+
+            self.tasks.clear()
+            print("ADA tasks stopped successfully")
+        except Exception as e:
+            print(f"Error stopping ADA tasks: {e}")
 
