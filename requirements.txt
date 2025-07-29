@@ -25,8 +25,8 @@ websockets==11.0.3
 
 # PyTorch (CPU version for simpler setup, replace with torch if you have CUDA GPU)
 torch
-torchvision==0.15.2+cpu
-torchaudio==2.0.2+cpu
+torchvision
+torchaudio
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Async utilities
