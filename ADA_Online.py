@@ -1,29 +1,16 @@
 # server/ADA_Online.py (Revised: Emits moved into functions)
 import asyncio
 import base64
+import torch
 import python_weather
-
-# Try to import torch, but handle gracefully if not available
-try:
-    import torch
-    TORCH_AVAILABLE = True
-except ImportError:
-    TORCH_AVAILABLE = False
-    print("PyTorch not available - GPU detection disabled")
 import asyncio
 # Trying to fix import issues
-# Set to True to force mock mode for testing
-FORCE_MOCK_MODE = False
-
 try:
-    if FORCE_MOCK_MODE:
-        raise ImportError("Forced mock mode for testing")
     from google.genai import types
     from google import genai
     print("Successfully imported google.genai")
 except ImportError as e:
     print(f"Error importing google.genai: {e}")
-    print("Using mock objects for testing...")
     # Fallback imports or mock objects if needed
     class MockTypes:
         def __init__(self):
@@ -55,49 +42,6 @@ except ImportError as e:
             OBJECT = "object"
             STRING = "string"
 
-    class MockPart:
-        def __init__(self, text=None, function_call=None):
-            self.text = text
-            self.function_call = function_call
-
-    class MockContent:
-        def __init__(self, parts):
-            self.parts = parts
-
-    class MockCandidate:
-        def __init__(self, content):
-            self.content = content
-
-    class MockChunk:
-        def __init__(self, candidates):
-            self.candidates = candidates
-
-    class MockChat:
-        def __init__(self):
-            pass
-
-        async def send_message(self, content=None):
-            return "This is a mock response - Google API not available"
-
-        async def send_message_stream(self, content=None):
-            """Mock implementation of send_message_stream that yields a single response chunk"""
-            # Create a mock response chunk that mimics the real Gemini API structure
-            mock_part = MockPart(text="Hello! I'm running in mock mode because the Google API is not available. You can still test the interface, but I won't be able to provide real AI responses.")
-            mock_content = MockContent(parts=[mock_part])
-            mock_candidate = MockCandidate(content=mock_content)
-            mock_chunk = MockChunk(candidates=[mock_candidate])
-
-            # Yield the mock chunk as an async iterator
-            yield mock_chunk
-
-    class MockChats:
-        def create(self, model=None, config=None):
-            return MockChat()
-
-    class MockAIO:
-        def __init__(self):
-            self.chats = MockChats()
-
     class MockGenAI:
         def __init__(self):
             pass
@@ -106,6 +50,18 @@ except ImportError as e:
             def __init__(self, api_key=None):
                 self.api_key = api_key
                 self.aio = MockAIO()
+
+        class MockAIO:
+            def __init__(self):
+                self.chats = MockChats()
+
+        class MockChats:
+            def create(self, model=None, config=None):
+                return MockChat()
+
+        class MockChat:
+            async def send_message(self, content=None):
+                return "This is a mock response as google.genai could not be imported"
 
     # Use mock objects
     types = MockTypes()
@@ -119,13 +75,7 @@ import os
 from dotenv import load_dotenv
 import websockets
 import json
-# Try to import googlesearch, but handle gracefully if not available
-try:
-    from googlesearch import search as Google_Search_sync
-    GOOGLESEARCH_AVAILABLE = True
-except ImportError:
-    GOOGLESEARCH_AVAILABLE = False
-    print("googlesearch-python not available - search functionality will be limited")
+from googlesearch import search as Google_Search_sync
 import aiohttp # For async HTTP requests
 from bs4 import BeautifulSoup # For HTML parsing
 
@@ -156,12 +106,12 @@ class ADA:
         self.client_sid = client_sid
         self.Maps_api_key = MAPS_API_KEY
 
-        if TORCH_AVAILABLE and torch.cuda.is_available():
+        if torch.cuda.is_available():
             self.device = "cuda"
             print("CUDA is available. Using GPU.")
         else:
             self.device = "cpu"
-            print("Using CPU (PyTorch not available or CUDA not available).")
+            print("CUDA is not available. Using CPU.")
 
         # --- Function Declarations (Keep as before) ---
         self.get_weather_func = types.FunctionDeclaration(
@@ -397,10 +347,8 @@ class ADA:
         return None
 
     def _sync_Google_Search(self, query: str, num_results: int = 5) -> list:
+        # ... (keep the previous working version that returns URLs) ...
         print(f"Performing synchronous Google search for: '{query}'")
-        if not GOOGLESEARCH_AVAILABLE:
-            print("googlesearch-python not available - returning empty results")
-            return []
         try:
             results = list(Google_Search_sync(term=query, num_results=num_results, lang="en", timeout=1))
             print(f"Found {len(results)} results.")
