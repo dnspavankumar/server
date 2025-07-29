@@ -9,9 +9,9 @@ google-generativeai
 googlemaps==4.10.0
 
 # HTTP and web parsing
-aiohttp==3.8.5
-beautifulsoup4==4.12.2
-requests==2.31.0
+aiohttp
+beautifulsoup4
+requests
 
 # Weather
 python-weather==1.1.1
