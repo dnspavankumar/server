@@ -31,7 +31,7 @@ if os.getenv('RENDER', '') == 'true':
     print(f"Running on Render with CORS origins: {cors_origins}")
 else:
     # For local development, use localhost origins
-    cors_origins = [REACT_APP_ORIGIN, REACT_APP_ORIGIN_IP, '*']
+    cors_origins = [REACT_APP_ORIGIN, REACT_APP_ORIGIN_IP, 'http://localhost:5174', 'http://127.0.0.1:5174', '*']
     print(f"Running locally with CORS origins: {cors_origins}")
 
 socketio = SocketIO(
