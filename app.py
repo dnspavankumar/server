@@ -2,14 +2,14 @@ import os
 from dotenv import load_dotenv
 import asyncio
 import threading
-from flask import Flask, render_template, request  # Make sure request is imported
+from flask import Flask, request
 from flask_socketio import SocketIO, emit
 
 import eventlet
-import eventlet.wsgi
+eventlet.monkey_patch()
 
 load_dotenv()
-from ADA_Online import ADA  # Make sure filename matches ADA_Online.py
+from ADA_Online import ADA  # Make sure this matches your actual module filename
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'a_default_fallback_secret_key!')
@@ -25,18 +25,22 @@ REACT_APP_ORIGIN_IP = f"http://127.0.0.1:{REACT_APP_PORT}"
 
 # For Render deployment
 FRONTEND_URL = os.getenv('FRONTEND_URL', '')
+RENDER_ENV = os.getenv('RENDER', '').lower() == 'true'  # normalize to boolean
 
 # Determine CORS settings based on environment
-if os.getenv('RENDER', '') == 'true':
-    # When deployed on Render, allow the frontend URL or '*' if not specified
-    cors_origins = [FRONTEND_URL] if FRONTEND_URL else '*'
+if RENDER_ENV:
+    # When deployed on Render, allow the frontend URL or allow all if not set
+    if FRONTEND_URL:
+        cors_origins = [FRONTEND_URL]
+    else:
+        cors_origins = '*'
     print(f"Running on Render with CORS origins: {cors_origins}")
 else:
-    # For local development, use localhost origins
-    cors_origins = [REACT_APP_ORIGIN, REACT_APP_ORIGIN_IP, '*']
+    # For local development, allow localhost origins
+    cors_origins = [REACT_APP_ORIGIN, REACT_APP_ORIGIN_IP]
     print(f"Running locally with CORS origins: {cors_origins}")
 
-# Use async_mode='eventlet' for better concurrency and production suitability
+# Initialize SocketIO with eventlet and proper CORS config
 socketio = SocketIO(
     app,
     async_mode='eventlet',
@@ -48,7 +52,7 @@ ada_loop = None
 ada_thread = None
 
 def run_asyncio_loop(loop):
-    """ Function to run the asyncio event loop in a separate thread """
+    """Function to run the asyncio event loop in a separate thread."""
     asyncio.set_event_loop(loop)
     try:
         print("Asyncio event loop started...")
@@ -63,7 +67,7 @@ def run_asyncio_loop(loop):
             loop.run_until_complete(asyncio.gather(*[t for t in tasks if not t.done()], return_exceptions=True))
             loop.run_until_complete(loop.shutdown_asyncgens())
         except RuntimeError as e:
-             print(f"RuntimeError during loop cleanup (might be expected if loop stopped abruptly): {e}")
+            print(f"RuntimeError during loop cleanup (might be expected if loop stopped abruptly): {e}")
         except Exception as e:
             print(f"Exception during loop cleanup: {e}")
         finally:
@@ -71,7 +75,7 @@ def run_asyncio_loop(loop):
                 loop.close()
         print("Asyncio event loop stopped.")
 
-# --- Your existing socketio event handlers unchanged ---
+# -- SocketIO event handlers --
 
 @socketio.on('connect')
 def handle_connect():
@@ -90,9 +94,9 @@ def handle_connect():
     if ada_instance is None:
         print(f"    Creating NEW ADA instance for SID: {client_sid}")
         if not ada_loop or not ada_loop.is_running():
-             print(f"    ERROR: Cannot create ADA instance, asyncio loop not ready for SID {client_sid}.")
-             emit('error', {'message': 'Assistant initialization error (loop).'}, room=client_sid)
-             return
+            print(f"    ERROR: Cannot create ADA instance, asyncio loop not ready for SID {client_sid}.")
+            emit('error', {'message': 'Assistant initialization error (loop).'}, room=client_sid)
+            return
 
         try:
             ada_instance = ADA(socketio_instance=socketio, client_sid=client_sid)
@@ -130,22 +134,21 @@ def handle_disconnect():
                 future.result(timeout=10)
                 print("    ADA tasks stopped successfully.")
             except TimeoutError:
-                print("    Timeout waiting for Alfred tasks to stop.")
+                print("    Timeout waiting for ADA tasks to stop.")
             except Exception as e:
                 print(f"    Exception during ADA task stop: {e}")
             finally:
-                 pass  # Keep loop running
-
+                pass  # Loop stays alive
         else:
-             print(f"    Cannot stop ADA tasks: asyncio loop not available or not running.")
+            print(f"    Cannot stop ADA tasks: asyncio loop not running or not available.")
 
         ada_instance = None
         print("    ADA instance cleared.")
 
     elif ada_instance:
-         print(f"    Disconnecting client {client_sid} is NOT the designated client ({ada_instance.client_sid}). ADA remains active.")
+        print(f"    Disconnecting client {client_sid} is NOT the designated client ({ada_instance.client_sid}). ADA remains active.")
     else:
-         print(f"    Client {client_sid} disconnected, but no active ADA instance found.")
+        print(f"    Client {client_sid} disconnected, but no active ADA instance found.")
 
     print(f"--- handle_disconnect finished for SID: {client_sid} ---\n")
 
@@ -171,27 +174,26 @@ def handle_transcribed_text(data):
     transcript = data.get('transcript', '')
     print(f"Received transcript from {client_sid}: {transcript}")
     if transcript and ada_instance and ada_instance.client_sid == client_sid:
-         if ada_loop and ada_loop.is_running():
+        if ada_loop and ada_loop.is_running():
             asyncio.run_coroutine_threadsafe(ada_instance.process_input(transcript, is_final_turn_input=True), ada_loop)
             print(f"    Transcript forwarded to ADA for SID: {client_sid}")
-         else:
-             print(f"    Cannot process transcript for SID {client_sid}: asyncio loop not ready.")
-             emit('error', {'message': 'Assistant busy or loop error.'}, room=client_sid)
+        else:
+            print(f"    Cannot process transcript for SID {client_sid}: asyncio loop not ready.")
+            emit('error', {'message': 'Assistant busy or loop error.'}, room=client_sid)
     elif not transcript:
-         print("    Received empty transcript.")
+        print("    Received empty transcript.")
     else:
-         print(f"    ADA instance not ready or SID mismatch for transcript from {client_sid}.")
+        print(f"    ADA instance not ready or SID mismatch for transcript from {client_sid}.")
 
 @socketio.on('send_video_frame')
 def handle_video_frame(data):
     client_sid = request.sid
-    frame_data_url = data.get('frame')  # Expecting data URL like 'data:image/jpeg;base64,xxxxx'
+    frame_data_url = data.get('frame')  # Expecting data URL like 'data:image/jpeg;base64,...'
 
     if frame_data_url and ada_instance and ada_instance.client_sid == client_sid:
         if ada_loop and ada_loop.is_running():
-            print(f"Received video frame from {client_sid}, forwarding...")  # Optional: very verbose
+            print(f"Received video frame from {client_sid}, forwarding...")
             asyncio.run_coroutine_threadsafe(ada_instance.process_video_frame(frame_data_url), ada_loop)
-        pass
 
 @socketio.on('video_feed_stopped')
 def handle_video_feed_stopped():
@@ -206,7 +208,7 @@ def handle_video_feed_stopped():
     else:
         print(f"    ADA instance not ready or SID mismatch for video_feed_stopped from {client_sid}.")
 
-
+# ---- Main entry and server start ----
 if __name__ == '__main__':
     host = os.getenv('HOST', '0.0.0.0')
     port = int(os.getenv('PORT', 10000))
@@ -216,9 +218,7 @@ if __name__ == '__main__':
     print(f"Starting Flask-SocketIO server with eventlet on {host}:{port} in {'debug' if debug_mode else 'production'} mode...")
 
     try:
-        # Use eventlet WSGI server instead of socketio.run
-        eventlet.wsgi.server(eventlet.listen((host, port)), app)
-
+        socketio.run(app, host=host, port=port, debug=debug_mode)
     finally:
         print("\nServer shutting down...")
         if ada_instance:
