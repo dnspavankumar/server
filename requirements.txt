@@ -1,0 +1,39 @@
+# Flask and related packages
+Flask==2.3.3
+Flask-SocketIO==5.3.6
+python-dotenv==1.0.0
+eventlet==0.33.3  # Recommended async mode for Flask-SocketIO
+gunicorn==21.2.0  # For production deployment
+
+# Google AI and Maps APIs
+google-generativeai==0.8.5
+google-ai-generativelanguage==0.6.15
+googlemaps==4.10.0
+
+# Web search and parsing
+googlesearch-python==1.1.0
+aiohttp==3.8.5
+beautifulsoup4==4.12.2
+lxml==4.9.3  # Parser for BeautifulSoup
+requests==2.31.0
+
+# Weather API
+python-weather==1.1.1
+
+# WebSockets for ElevenLabs TTS
+websockets==11.0.3
+
+# PyTorch (CPU version for simpler setup, replace with torch if you have CUDA GPU)
+torch==2.0.1+cpu
+torchvision==0.15.2+cpu
+torchaudio==2.0.2+cpu
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Async utilities
+asyncio==3.4.3
+
+# Additional dependencies
+gevent==23.9.1
+engineio==3.14.2
+bidict==0.22.1
+google.genai==1.15.0
