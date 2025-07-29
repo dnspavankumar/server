@@ -1,3 +1,6 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os
 from dotenv import load_dotenv
 import asyncio
@@ -5,11 +8,8 @@ import threading
 from flask import Flask, request
 from flask_socketio import SocketIO, emit
 
-import eventlet
-eventlet.monkey_patch()
-
 load_dotenv()
-from ADA_Online import ADA  # Make sure this matches your actual module filename
+from ADA_Online import ADA
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'a_default_fallback_secret_key!')
