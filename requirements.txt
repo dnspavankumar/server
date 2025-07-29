@@ -5,7 +5,6 @@ eventlet
 gunicorn
 
 google-generativeai
-google-ai-generativelanguage
 googlemaps
 
 googlesearch-python
@@ -22,9 +21,6 @@ torch
 torchvision
 torchaudio
 
-asyncio
-
 gevent
 python-engineio
 bidict
-google.genai
