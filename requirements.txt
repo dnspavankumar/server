@@ -25,6 +25,6 @@ torchaudio
 asyncio
 
 gevent
-engineio
+python-engineio
 bidict
 google.genai
