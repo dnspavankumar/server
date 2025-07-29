@@ -217,34 +217,47 @@ def handle_video_feed_stopped():
 
 
 if __name__ == '__main__':
+    # Get port and host from environment variables or use defaults
+    host = os.getenv('HOST', '0.0.0.0')
     port = int(os.getenv('PORT', 10000))
-    is_production = os.getenv('RENDER', 'false').lower() == 'true'
-    print(f"Starting Flask-SocketIO server on port {port} in {'production' if is_production else 'development'} mode...")
+    env = os.getenv('FLASK_ENV', 'production')
+    debug_mode = env != 'production'
+    
+    print(f"Starting Flask-SocketIO server on {host}:{port} in {'debug' if debug_mode else 'production'} mode...")
+
     try:
-        socketio.run(app, debug=not is_production, host='0.0.0.0', port=port, use_reloader=False, allow_unsafe_werkzeug=True)
+        socketio.run(
+            app,
+            debug=debug_mode,
+            host=host,
+            port=port,
+            use_reloader=False,
+            allow_unsafe_werkzeug=True
+        )
     finally:
+        # Your existing shutdown logic here, unchanged
         print("\nServer shutting down...")
         if ada_instance:
-             print("Attempting to stop active ADA instance on server shutdown...")
-             if ada_loop and ada_loop.is_running():
-                 future = asyncio.run_coroutine_threadsafe(ada_instance.stop_all_tasks(), ada_loop)
-                 try:
-                     future.result(timeout=5)
-                     print("ADA tasks stopped.")
-                 except TimeoutError:
-                     print("Timeout stopping ADA tasks during shutdown.")
-                 except Exception as e:
-                     print(f"Exception stopping ADA tasks during shutdown: {e}")
-             else:
-                 print("Cannot stop ADA instance: asyncio loop not available.")
-             ada_instance = None
+            print("Attempting to stop active ADA instance on server shutdown...")
+            if ada_loop and ada_loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(ada_instance.stop_all_tasks(), ada_loop)
+                try:
+                    future.result(timeout=5)
+                    print("ADA tasks stopped.")
+                except TimeoutError:
+                    print("Timeout stopping ADA tasks during shutdown.")
+                except Exception as e:
+                    print(f"Exception stopping ADA tasks during shutdown: {e}")
+            else:
+                print("Cannot stop ADA instance: asyncio loop not available.")
+            ada_instance = None
 
         if ada_loop and ada_loop.is_running():
-             print("Stopping asyncio loop from main thread...")
-             ada_loop.call_soon_threadsafe(ada_loop.stop)
-             if ada_thread and ada_thread.is_alive():
-                 ada_thread.join(timeout=5)
-                 if ada_thread.is_alive():
-                     print("Warning: Asyncio thread did not exit cleanly.")
-             print("Asyncio loop/thread stop initiated.")
+            print("Stopping asyncio loop from main thread...")
+            ada_loop.call_soon_threadsafe(ada_loop.stop)
+            if ada_thread and ada_thread.is_alive():
+                ada_thread.join(timeout=5)
+                if ada_thread.is_alive():
+                    print("Warning: Asyncio thread did not exit cleanly.")
+            print("Asyncio loop/thread stop initiated.")
         print("Shutdown complete.")
