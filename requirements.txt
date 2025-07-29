@@ -24,7 +24,7 @@ python-weather==1.1.1
 websockets==11.0.3
 
 # PyTorch (CPU version for simpler setup, replace with torch if you have CUDA GPU)
-torch==2.0.1+cpu
+torch
 torchvision==0.15.2+cpu
 torchaudio==2.0.2+cpu
 --extra-index-url https://download.pytorch.org/whl/cpu
